@@ -17,9 +17,14 @@ class Counter extends Map{
 }
 
 const extractItemText = (text) => {
-  text.trim().replace(/[a-zA-Z0-9\+\/]{50,}/g,'')
-             .replace(/<(.|\n)*?>/g, ' ')
-             .replace(/\[((http|https|ftp):.*?) (.*?)\]/g, ' ')
+  text.trim().replace(/\[{2}|\[(?:[\S]+)|\]{1,2}/g,'')
+             .replace(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/g, ' ')
+             .split(/\s+/)
+             .forEach((word) => words.count(word.toLowerCase()))
+}
+
+const extractLineText = (line) => {
+  line.trim().replace(/\[{2}|\[(?:[\S]+)|\]{1,2}/g, '')
              .split(/\s+/)
              .forEach((word) => words.count(word.toLowerCase()))
 }
@@ -28,11 +33,25 @@ const extractStoryText = (story) => {
   story.forEach((item) => {
     if (Object.hasOwn(item, 'type')) {
       items.count(item.type)
+      if (Object.hasOwn(item, 'text')) {
+        switch (item.type) {
+          case 'paragraph':
+          case 'markdown':
+          case 'html':
+          case 'reference':
+            extractItemText(item.text)
+            break
+          default:
+            item.text.split(/\r\n?|\n/).forEach((line) => {
+              if (!line.match(/^[A-Z]+[ ].*/)) {
+                extractLineText(line)
+              }
+            })
+        }
+        
+      }
     } else {
       items.count('type missing')
-    }
-    if (Object.hasOwn(item, 'text')) {
-      extractItemText(item.text)
     }
   })
 }
