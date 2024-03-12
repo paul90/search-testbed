@@ -47,8 +47,7 @@ const extractStoryText = (story) => {
                 extractLineText(line)
               }
             })
-        }
-        
+        }      
       }
     } else {
       items.count('type missing')
