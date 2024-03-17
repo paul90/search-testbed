@@ -12,6 +12,10 @@ class Counter extends Map{
     return super.get(key)
   }
   count(key){
+    // guard against a zero length key
+    if (key.length == 0) {
+      return
+    }
     return super.set(key, (super.get(key) || 0) + 1)
   }
 }
