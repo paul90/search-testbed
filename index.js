@@ -23,6 +23,7 @@ class Counter extends Map{
 const extractItemText = (text) => {
   text.trim().replace(/\[{2}|\[(?:[\S]+)|\]{1,2}/g,'')
              .replace(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/g, ' ')
+             .replace(/[\p{P}]/gu, ' ')
              .split(/\s+/)
              .forEach((word) => words.count(word.toLowerCase()))
 }
