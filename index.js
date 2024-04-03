@@ -5,6 +5,9 @@ import { createWriteStream } from 'node:fs'
 
 const pages = path.join(argv.slice(2)[0], 'pages')
 
+let pageTitle = ''
+let itemId = ''
+
 console.log(pages)
 
 class Counter extends Map{
@@ -12,27 +15,75 @@ class Counter extends Map{
     return super.get(key)
   }
   count(key){
+    // guard against null key
+    if (key == null || key.length == 0) { 
+      return
+    }
     return super.set(key, (super.get(key) || 0) + 1)
   }
 }
 
 const extractItemText = (text) => {
-  text.trim().replace(/[a-zA-Z0-9\+\/]{50,}/g,'')
-             .replace(/<(.|\n)*?>/g, ' ')
-             .replace(/\[((http|https|ftp):.*?) (.*?)\]/g, ' ')
-             .split(/\s+/)
-             .forEach((word) => words.count(word.toLowerCase()))
+  text.replace(/\[{2}|\[(?:[\S]+)|\]{1,2}/g,' ')                  // remove braces from any wiki links
+      .replace(/\n/g, ' ')
+      .replace(/<style.*?<\/style>/g, ' ') // remove any STYLE content
+      .replace(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/g, ' ')   // remove HTML tags - fails if mismatched quotes!
+      .replace(/<(?:[^>])+>/g, ' ')                               // remove any HTML tags - fails if embedded tags - in alt text!
+      .replace(/\[([^\]]*?)\][\[\(].*?[\]\)]/g, ` ${2} `)         // remove markdown links
+      .replace(/https?.*?(?=\p{White_Space}|$)/gu, ' ')           // remove any URLs                     
+      .replace(/[\p{P}\p{Emoji}\p{Symbol}}]+/gu, ' ')             // remove all Punctuation, Emoji and Symbols
+      .replace(/[\p{White_Space}\n\t]+/gu, ' ')
+      .split(/\s+/)                                               // split - same a default tokenizer in minisearch
+      //.filter((word) => word.match(/^[\p{Alphabetic}]*$/u))     // words must only contain letters
+      .forEach((word) => {
+        words.count(word.toLowerCase())
+        if (word.length > 50) {
+          console.log('long word', pageTitle, itemId, word)
+        }
+      })
 }
 
 const extractStoryText = (story) => {
   story.forEach((item) => {
     if (Object.hasOwn(item, 'type')) {
       items.count(item.type)
+      itemId = item.id
+
+      if (Object.hasOwn(item, 'text')) {
+        switch (item.type) {
+          case 'paragraph':
+          case 'markdown':
+          case 'html':
+          case 'reference':
+          case 'image':
+          case 'pagefold':
+          case 'math':
+          case 'mathjax':
+            extractItemText(item.text)
+            break
+          case 'audio':
+          case 'video':
+          case 'frame':
+            // remove lines starting with UPPERCASE word or a URL
+            extractItemText(item.text.split(/\r\n?|\n/)
+                .map((line) => {
+                  const firstWord = line.split(/\p{White_Space}/u)[0]
+                  if (firstWord.startsWith('http') ||
+                      firstWord.toUpperCase() === firstWord ||
+                      firstWord.startsWith('//')) {
+                    // line is markup
+                    return ''
+                  } else {
+                    return line
+                  }
+                }).join(' '))
+            break
+          default:
+            // other item types are not indexed.
+        }      
+      }
     } else {
       items.count('type missing')
-    }
-    if (Object.hasOwn(item, 'text')) {
-      extractItemText(item.text)
     }
   })
 }
@@ -54,6 +105,7 @@ readdir(pages, { withFileTypes: true })
               try {
                 if (Object.hasOwn(page, 'story')) {
                   const story = page.story
+                  pageTitle = page.title
                   extractStoryText(story)
                 }
               } catch (error) {
